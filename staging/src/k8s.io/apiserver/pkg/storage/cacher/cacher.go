@@ -159,16 +159,19 @@ func (i *indexedWatchers) terminateAll(objectType reflect.Type, done func(*cache
 // if you set fire time at X, you can get the bookmark within (X-1,X+1) period.
 type watcherBookmarkTimeBuckets struct {
 	lock              sync.Mutex
-	watchersBuckets   map[int64][]*cacheWatcher
-	startBucketID     int64
+	watchersBuckets   map[time.Duration][]*cacheWatcher
+	createTime        time.Time
+	startBucketID     time.Duration
 	clock             clock.Clock
 	bookmarkFrequency time.Duration
 }
 
 func newTimeBucketWatchers(clock clock.Clock, bookmarkFrequency time.Duration) *watcherBookmarkTimeBuckets {
+	now := clock.Now()
 	return &watcherBookmarkTimeBuckets{
-		watchersBuckets:   make(map[int64][]*cacheWatcher),
-		startBucketID:     clock.Now().Unix(),
+		watchersBuckets:   make(map[time.Duration][]*cacheWatcher),
+		createTime:        now,
+		startBucketID:     clock.Since(now) / time.Second,
 		clock:             clock,
 		bookmarkFrequency: bookmarkFrequency,
 	}
@@ -181,7 +184,7 @@ func (t *watcherBookmarkTimeBuckets) addWatcher(w *cacheWatcher) bool {
 	if !ok {
 		return false
 	}
-	bucketID := nextTime.Unix()
+	bucketID := nextTime.Sub(t.createTime) / time.Second
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	if bucketID < t.startBucketID {
@@ -193,7 +196,7 @@ func (t *watcherBookmarkTimeBuckets) addWatcher(w *cacheWatcher) bool {
 }
 
 func (t *watcherBookmarkTimeBuckets) popExpiredWatchers() [][]*cacheWatcher {
-	currentBucketID := t.clock.Now().Unix()
+	currentBucketID := t.clock.Since(t.createTime) / time.Second
 	// There should be one or two elements in almost all cases
 	expiredWatchers := make([][]*cacheWatcher, 0, 2)
 	t.lock.Lock()
