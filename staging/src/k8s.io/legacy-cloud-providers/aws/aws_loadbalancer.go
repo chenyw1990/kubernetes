@@ -707,6 +707,27 @@ func (c *Cloud) ensureTargetGroup(targetGroup *elbv2.TargetGroup, serviceName ty
 	return targetGroup, nil
 }
 
+func (c *Cloud) getVpcCidrBlocks() ([]string, error) {
+	vpcs, err := c.ec2.DescribeVpcs(&ec2.DescribeVpcsInput{
+		VpcIds: []*string{aws.String(c.vpcID)},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error querying VPC for ELB: %q", err)
+	}
+	if len(vpcs.Vpcs) != 1 {
+		return nil, fmt.Errorf("error querying VPC for ELB, got %d vpcs for %s", len(vpcs.Vpcs), c.vpcID)
+	}
+
+	cidrBlocks := make([]string, 0, len(vpcs.Vpcs[0].CidrBlockAssociationSet))
+	for _, cidr := range vpcs.Vpcs[0].CidrBlockAssociationSet {
+		if aws.StringValue(cidr.CidrBlockState.State) != ec2.VpcCidrBlockStateCodeAssociated {
+			continue
+		}
+		cidrBlocks = append(cidrBlocks, aws.StringValue(cidr.CidrBlock))
+	}
+	return cidrBlocks, nil
+}
+
 // updateInstanceSecurityGroupsForNLB will adjust securityGroup's settings to allow inbound traffic into instances from clientCIDRs and portMappings.
 // TIP: if either instances or clientCIDRs or portMappings are nil, then the securityGroup rules for lbName are cleared.
 func (c *Cloud) updateInstanceSecurityGroupsForNLB(lbName string, instances map[InstanceID]*ec2.Instance, subnetCIDRs []string, clientCIDRs []string, portMappings []nlbPortMapping) error {
