@@ -2024,3 +2024,116 @@ func TestConstructStsEndpoint(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestNodeAddressesForFargate(t *testing.T) {
+	awsServices := newMockedFakeAWSServices(TestClusterID)
+	c, _ := newAWSCloud(CloudConfig{}, awsServices)
+	c.cfg.Global.IPAddress = "1.2.3.4"
+	c.cfg.Global.PrivateDNSName = "ip-1-2-3-4.compute.amazon.com"
+
+	nodeAddresses, _ := c.NodeAddresses(context.TODO(), "fargate-ip-1-2-3-4.compute.amazon.com")
+	verifyNodeAddressesForFargate(t, nodeAddresses)
+}
+
+func TestBuildFargateTaskFromDescribeNetworkInterfaces(t *testing.T) {
+	awsServices := newMockedFakeAWSServices(TestClusterID)
+	c, _ := newAWSCloud(CloudConfig{}, awsServices)
+	c.cfg.Global.ProviderIDPrefix = "fargateTest"
+
+	awsInstance, _ := c.buildAWSInstanceForFargateNode("fargate-ip-1-2-3-4.compute.amazon.com")
+	assert.Equal(t, "vpc-123456", awsInstance.vpcID)
+	assert.Equal(t, "subnet-123456", awsInstance.subnetID)
+	assert.Equal(t, "1.2.3.4", awsInstance.addresses[0].Address)
+	assert.Equal(t, "us-west-2b", awsInstance.availabilityZone)
+	assert.Equal(t, "fargateTest/fargate-ip-1-2-3-4.compute.amazon.com", awsInstance.awsID)
+}
+
+func TestNodeAddressesByProviderIDForFargate(t *testing.T) {
+	awsServices := newMockedFakeAWSServices(TestClusterID)
+	c, _ := newAWSCloud(CloudConfig{}, awsServices)
+	c.cfg.Global.IPAddress = "1.2.3.4"
+	c.cfg.Global.PrivateDNSName = "ip-1-2-3-4.compute.amazon.com"
+
+	nodeAddresses, _ := c.NodeAddressesByProviderID(context.TODO(), "fargateTest/fargate-ip-1-2-3-4.compute.amazon.com")
+	verifyNodeAddressesForFargate(t, nodeAddresses)
+}
+
+func verifyNodeAddressesForFargate(t *testing.T, nodeAddresses []v1.NodeAddress) {
+	assert.Equal(t, 2, len(nodeAddresses))
+	assert.Equal(t, "1.2.3.4", nodeAddresses[0].Address)
+	assert.Equal(t, v1.NodeInternalIP, nodeAddresses[0].Type)
+	assert.Equal(t, "ip-1-2-3-4.compute.amazon.com", nodeAddresses[1].Address)
+	assert.Equal(t, v1.NodeInternalDNS, nodeAddresses[1].Type)
+}
+
+func TestBuildFargateTaskUsingPrivateIpFromDescribeNetworkInterfaces(t *testing.T) {
+	awsServices := newMockedFakeAWSServices(TestClusterID)
+	c, _ := newAWSCloud(CloudConfig{}, awsServices)
+	c.cfg.Global.ProviderIDPrefix = "fargateTest"
+	nodeName := "fargate-1.2.3.4"
+
+	awsInstance, _ := c.buildAWSInstanceForFargateNode(nodeName)
+	assert.Equal(t, "1.2.3.4", awsInstance.addresses[0].Address)
+	assert.Equal(t, string(awsInstance.nodeName), nodeName)
+	assert.Equal(t, "fargateTest/fargate-1.2.3.4", awsInstance.awsID)
+	assert.Equal(t, 1, len(awsInstance.addresses))
+}
+
+func TestCloud_sortELBSecurityGroupList(t *testing.T) {
+	type args struct {
+		securityGroupIDs []string
+		annotations      map[string]string
+	}
+	tests := []struct {
+		name                 string
+		args                 args
+		wantSecurityGroupIDs []string
+	}{
+		{
+			name: "with no annotation",
+			args: args{
+				securityGroupIDs: []string{"sg-1"},
+				annotations:      map[string]string{},
+			},
+			wantSecurityGroupIDs: []string{"sg-1"},
+		},
+		{
+			name: "with service.beta.kubernetes.io/aws-load-balancer-security-groups",
+			args: args{
+				securityGroupIDs: []string{"sg-2", "sg-1", "sg-3"},
+				annotations: map[string]string{
+					"service.beta.kubernetes.io/aws-load-balancer-security-groups": "sg-3,sg-2,sg-1",
+				},
+			},
+			wantSecurityGroupIDs: []string{"sg-3", "sg-2", "sg-1"},
+		},
+		{
+			name: "with service.beta.kubernetes.io/aws-load-balancer-extra-security-groups",
+			args: args{
+				securityGroupIDs: []string{"sg-2", "sg-1", "sg-3", "sg-4"},
+				annotations: map[string]string{
+					"service.beta.kubernetes.io/aws-load-balancer-extra-security-groups": "sg-3,sg-2,sg-1",
+				},
+			},
+			wantSecurityGroupIDs: []string{"sg-4", "sg-3", "sg-2", "sg-1"},
+		},
+		{
+			name: "with both annotation",
+			args: args{
+				securityGroupIDs: []string{"sg-2", "sg-1", "sg-3", "sg-4", "sg-5", "sg-6"},
+				annotations: map[string]string{
+					"service.beta.kubernetes.io/aws-load-balancer-security-groups":       "sg-3,sg-2,sg-1",
+					"service.beta.kubernetes.io/aws-load-balancer-extra-security-groups": "sg-6,sg-5",
+				},
+			},
+			wantSecurityGroupIDs: []string{"sg-3", "sg-2", "sg-1", "sg-4", "sg-6", "sg-5"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Cloud{}
+			c.sortELBSecurityGroupList(tt.args.securityGroupIDs, tt.args.annotations)
+			assert.Equal(t, tt.wantSecurityGroupIDs, tt.args.securityGroupIDs)
+		})
+	}
+}
