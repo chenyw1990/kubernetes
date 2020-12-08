@@ -736,7 +736,7 @@ func newAWSSDKProvider(cfg *CloudConfig) (*awsSDKProvider, error) {
 		if err != nil {
 			return nil, err
 		}
-		stsEndpoint, err := constructStsEndpoint(cfg.Global.RoleARN, regionName)
+		stsEndpoint, err := ConstructStsEndpoint(cfg.Global.RoleARN, regionName)
 		if err != nil {
 			return nil, err
 		}
@@ -4807,7 +4807,7 @@ func arnToAwsUrlSuffix(arnString string) (string, error) {
 	}
 }
 
-func constructStsEndpoint(arnString, region string) (string, error) {
+func ConstructStsEndpoint(arnString, region string) (string, error) {
 	suffix, err := arnToAwsUrlSuffix(arnString)
 	if err != nil {
 		return "", err
