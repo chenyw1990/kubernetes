@@ -41,6 +41,7 @@ filegroup(
     name = "all-srcs",
     srcs = [
         ":package-srcs",
+        "//vendor/github.com/aws/aws-sdk-go/aws/arn:all-srcs",
         "//vendor/github.com/aws/aws-sdk-go/aws/awserr:all-srcs",
         "//vendor/github.com/aws/aws-sdk-go/aws/awsutil:all-srcs",
         "//vendor/github.com/aws/aws-sdk-go/aws/client:all-srcs",

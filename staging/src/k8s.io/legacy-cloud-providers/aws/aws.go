@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
@@ -735,7 +736,10 @@ func newAWSSDKProvider(cfg *CloudConfig) (*awsSDKProvider, error) {
 		if err != nil {
 			return nil, err
 		}
-		stsEndpoint := fmt.Sprintf("sts.%s.amazonaws.com", regionName)
+		stsEndpoint, err := constructStsEndpoint(cfg.Global.RoleARN, regionName)
+		if err != nil {
+			return nil, err
+		}
 		provider = &stscreds.AssumeRoleProvider{
 			Client:  sts.New(sess, aws.NewConfig().WithRegion(regionName).WithEndpoint(stsEndpoint)),
 			RoleARN: cfg.Global.RoleARN,
@@ -4775,4 +4779,38 @@ func getInitialAttachDetachDelay(status string) time.Duration {
 		return volumeDetachmentStatusInitialDelay
 	}
 	return volumeAttachmentStatusInitialDelay
+}
+
+// Returns the url suffix for AWS Endpoints in the region from the provided arn
+func arnToAwsUrlSuffix(arnString string) (string, error) {
+	arnStruct, err := arn.Parse(arnString)
+	if err != nil {
+		return "", err
+	}
+	switch arnStruct.Partition {
+	case "aws":
+		return "amazonaws.com", nil
+	case "aws-cn":
+		return "amazonaws.com.cn", nil
+	case "aws-us-gov":
+		return "amazonaws.com", nil
+	case "aws-iso":
+		return "c2s.ic.gov", nil
+	case "aws-iso-b":
+		return "sc2s.sgov.gov", nil
+	case "aws-iso-c":
+		return "amazonaws.ic.gov", nil
+	case "aws-iso-d":
+		return "amazonaws.scloud", nil
+	default:
+		return "", fmt.Errorf("unsupported partition: %s", arnStruct.Partition)
+	}
+}
+
+func constructStsEndpoint(arnString, region string) (string, error) {
+	suffix, err := arnToAwsUrlSuffix(arnString)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("sts.%s.%s", region, suffix), nil
 }

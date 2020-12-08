@@ -34,7 +34,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -1983,22 +1983,44 @@ func newMockedFakeAWSServices(id string) *FakeAWSServices {
 	return s
 }
 
-func TestAzToRegion(t *testing.T) {
-	testCases := []struct {
-		az     string
-		region string
-	}{
-		{"us-west-2a", "us-west-2"},
-		{"us-west-2-lax-1a", "us-west-2"},
-		{"ap-northeast-2a", "ap-northeast-2"},
-		{"us-gov-east-1a", "us-gov-east-1"},
-		{"us-iso-east-1a", "us-iso-east-1"},
-		{"us-isob-east-1a", "us-isob-east-1"},
-	}
+func TestConstructStsEndpoint(t *testing.T) {
+	t.Run("returns an error when the arn is invalid", func(t *testing.T) {
+		arn := "asdf"
+		region := "us-east-1"
+		endpoint, err := constructStsEndpoint(arn, region)
+		assert.Equal(t, endpoint, "")
+		require.Error(t, err)
+	})
 
-	for _, testCase := range testCases {
-		result, err := azToRegion(testCase.az)
-		assert.NoError(t, err)
-		assert.Equal(t, testCase.region, result)
-	}
+	t.Run("returns sts.us-east-1.amazonaws.com when region/partition is us-east-1/aws", func(t *testing.T) {
+		arn := "arn:aws:eks:us-east-1:1234:cluster/asdf"
+		region := "us-east-1"
+		endpoint, err := constructStsEndpoint(arn, region)
+		assert.Equal(t, endpoint, "sts.us-east-1.amazonaws.com")
+		require.NoError(t, err)
+	})
+
+	t.Run("returns sts.cn-northwest-1.amazonaws.com.cn when region/partition is cn-northwest-1/aws-cn", func(t *testing.T) {
+		arn := "arn:aws-cn:eks:cn-northwest-1:1234:cluster/asdf"
+		region := "cn-northwest-1"
+		endpoint, err := constructStsEndpoint(arn, region)
+		assert.Equal(t, endpoint, "sts.cn-northwest-1.amazonaws.com.cn")
+		require.NoError(t, err)
+	})
+
+	t.Run("returns sts.us-gov-east-1.amazonaws.com when region/partion is us-gov-east-1/aws-us-gov", func(t *testing.T) {
+		arn := "arn:aws-us-gov:eks:us-gov-east-1:1234:cluster/asdf"
+		region := "us-gov-east-1"
+		endpoint, err := constructStsEndpoint(arn, region)
+		assert.Equal(t, endpoint, "sts.us-gov-east-1.amazonaws.com")
+		require.NoError(t, err)
+	})
+
+	t.Run("returns sts.me-south-1.amazonaws.com when region/partion is me-south-1/aws", func(t *testing.T) {
+		arn := "arn:aws:eks:me-south-1:1234:cluster/asdf"
+		region := "me-south-1"
+		endpoint, err := constructStsEndpoint(arn, region)
+		assert.Equal(t, endpoint, "sts.me-south-1.amazonaws.com")
+		require.NoError(t, err)
+	})
 }
