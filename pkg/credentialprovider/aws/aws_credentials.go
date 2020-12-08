@@ -45,7 +45,7 @@ import (
 	k8saws "k8s.io/legacy-cloud-providers/aws"
 )
 
-var ecrPattern = regexp.MustCompile(`^(\d{12})\.dkr\.ecr(\-fips)?\.([a-zA-Z0-9][a-zA-Z0-9-_]*)\.amazonaws\.com(\.cn)?$`)
+var ecrPattern = regexp.MustCompile(`^(\d{12})\.dkr\.ecr(\-fips)?\.([a-zA-Z0-9][a-zA-Z0-9-_]*)\.(amazonaws\.com(\.cn)?|sc2s\.sgov\.gov|c2s\.ic\.gov)$`)
 
 // init registers a credential provider for each registryURLTemplate and creates
 // an ECR token getter factory with a new cache to store token getters
