@@ -247,17 +247,21 @@ func (m *manager) UpdatePodStatus(podUID types.UID, podStatus *v1.PodStatus) {
 			} else {
 				// The check whether there is a probe which hasn't run yet.
 				w, exists := m.getWorker(podUID, c.Name, readiness)
-				ready = !exists // no readinessProbe -> always ready
 				if exists {
+					ready = podStatus.ContainerStatuses[i].Ready
 					// Trigger an immediate run of the readinessProbe to update ready state
 					select {
 					case w.manualTriggerCh <- struct{}{}:
 					default: // Non-blocking.
 						klog.Warningf("Failed to trigger a manual run of %s probe", w.probeType.String())
 					}
+				} else {
+					ready = true
 				}
 			}
 			podStatus.ContainerStatuses[i].Ready = ready
+		} else {
+			podStatus.ContainerStatuses[i].Ready = false
 		}
 	}
 	// init containers are ready if they have exited with success or if a readiness probe has

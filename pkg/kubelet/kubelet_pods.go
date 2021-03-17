@@ -1749,6 +1749,7 @@ func (kl *Kubelet) convertToAPIContainerStatuses(pod *v1.Pod, podStatus *kubecon
 			} else {
 				// Apply some values from the old statuses as the default values.
 				status.RestartCount = oldStatus.RestartCount
+				status.Ready = oldStatus.Ready
 				status.LastTerminationState = oldStatus.LastTerminationState
 			}
 		}
@@ -1837,6 +1838,7 @@ func (kl *Kubelet) convertToAPIContainerStatuses(pod *v1.Pod, podStatus *kubecon
 			oldStatusPtr = &oldStatus
 		}
 		status := convertContainerStatus(cStatus, oldStatusPtr)
+		status.Ready = statuses[cName].Ready
 		if containerSeen[cName] == 0 {
 			statuses[cName] = status
 		} else {

@@ -209,7 +209,9 @@ func (w *worker) doProbe() (keepGoing bool) {
 			w.resultsManager.Remove(w.containerID)
 		}
 		w.containerID = kubecontainer.ParseContainerID(c.ContainerID)
-		w.resultsManager.Set(w.containerID, w.initialValue, w.pod)
+		if !c.Ready || w.initialValue == results.Success {
+			w.resultsManager.Set(w.containerID, w.initialValue, w.pod)
+		}
 		// We've got a new container; resume probing.
 		w.onHold = false
 	}
