@@ -27,7 +27,7 @@ import (
 const (
 	// The limit on the number of buffered container deletion requests
 	// This number is a bit arbitrary and may be adjusted in the future.
-	containerDeletorBufferLimit = 50
+	containerDeletorBufferLimit = 500
 )
 
 type containerStatusbyCreatedList []*kubecontainer.Status
